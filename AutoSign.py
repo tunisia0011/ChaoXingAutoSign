@@ -5,7 +5,6 @@ import base64
 import re
 from itertools import combinations
 import time
-import os
 
 global currClass
 currClass=0
@@ -105,26 +104,57 @@ def qiandao(url:str,address:str,sleepTime:int,SENDKEY:str):
             print(res.text)
             if '非签到活动' in res.text:
                 continue
-            if res.text=='success':
-                #server酱推送
-                requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-签到成功", 'desp': course_dict[currClass][0]+"签到成功"})
-            elif res.text=='您已签到过了':
-                requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-已签到过了", 'desp': course_dict[currClass][0]+"您已签到过了"})
-            else:
-                requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-签到失败", 'desp': "签到失败。原因："+res.text})
-                
-            
+            push(SENDKEY,res,TGCHATID,BOTTOKEN)
         print('\n')
             
+def push(SENDKEY,res,TGCHATID,BOTTOKEN):
+    if SENDKEY == '':
+        print("SENDKEY 为空，跳过 server 酱推送")
+    else:
+        if res.text=='success':
+            #server酱推送
+            rServerchan = requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-签到成功", 'desp': course_dict[currClass][0]+"签到成功"})
+        elif res.text=='您已签到过了':
+            rServerchan = requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-已签到过了", 'desp': course_dict[currClass][0]+"您已签到过了"})
+        else:
+            rServerchan = requests.post('https://sctapi.ftqq.com/{sendkey}.send'.format(sendkey=SENDKEY), data={'text': "学习通-签到失败", 'desp': "签到失败，原因："+res.text})
+        if rServerchan.status_code == 200:
+            print("Server酱推送成功")
+        elif rServerchan.status_code == 400:
+            print("Server酱推送失败，SENDKEY 填写有误")
+        else:
+            print("Server酱推送失败，未知错误")
+
+    if (TGCHATID == '' or BOTTOKEN == ''):
+        print("Telgram 推送参数配置有错，跳过 telegram 推送")
+    else:
+        if res.text=='success':
+            #Telegram 推送
+            rTelegram = requests.get('https://api.telegram.org/bot{BOTTOKEN}/sendMessage?chat_id={TGCHATID}&text={desp}'.format(BOTTOKEN=BOTTOKEN,TGCHATID=TGCHATID,desp=course_dict[currClass][0]+"签到成功"))
+        elif res.text=='您已签到过了':
+            rTelegram = requests.get('https://api.telegram.org/bot{BOTTOKEN}/sendMessage?chat_id={TGCHATID}&text={desp}'.format(BOTTOKEN=BOTTOKEN,TGCHATID=TGCHATID,desp=course_dict[currClass][0]+"您已签到过了"))
+        else:
+            rTelegram = requests.get('https://api.telegram.org/bot{BOTTOKEN}/sendMessage?chat_id={TGCHATID}&text={desp}'.format(BOTTOKEN=BOTTOKEN,TGCHATID=TGCHATID,desp="签到失败，原因："+res.text))
+        if rTelegram.status_code == 200 :
+            print('Telegram 推送成功')
+        elif rTelegram.status_code == 400 :
+            print('Telegram 推送失败，CHATID 填写有误')
+        else :
+            print('Telegram 推送失败，未知错误')
+
 
 
 
 if __name__=='__main__':
-    username=os.environ["USERNAME"]
-    password=os.environ["PASSWORD"]
-    
+    username=os.environ["USERNAME"].split('@')
+    password=os.environ["PASSWORD"].split('@')
+
     #server酱sendkey
     SENDKEY=os.environ["SENDKEY"]
+
+    #Telegram推送参数
+    TGCHATID=os.environ["TGCHATID"]
+    BOTTOKEN=os.environ["BOTTOKEN"]
     
     #在下方可以更改签到地址和二维码的enc
     address=os.environ["ADDRESS"]
@@ -134,11 +164,12 @@ if __name__=='__main__':
     #监测到签到活动后，延迟多久进行签到，1s=1000ms
     sleepTime=10
 
-    login(username,password)
-    getclass()
-
-    #print(course_dict)
-    for currClass in course_dict:
-        #print(course_dict[i][1])
-        qiandao(course_dict[currClass][1],address,sleepTime,SENDKEY)
-
+    for i in range(len(username)):
+        usr = username[i]
+        pwd = password[i]
+        login(usr,pwd)
+        getclass()
+        #print(course_dict)
+        for currClass in course_dict:
+            #print(course_dict[i][1])
+            qiandao(course_dict[currClass][1],address,sleepTime,SENDKEY)
